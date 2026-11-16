@@ -1,0 +1,7 @@
+.git
+.env
+.env.*
+data
+dist
+node_modules
+*.zip
