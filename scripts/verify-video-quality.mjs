@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import {test} from 'node:test';
 const settingsSource=await readFile(new URL('../maker/video-settings.js',import.meta.url),'utf8');
 const hostedSource=await readFile(new URL('../maker/hosted.js',import.meta.url),'utf8');
+const sharedSource=await readFile(new URL('../maker/shared-saves.js',import.meta.url),'utf8');
 function harness(){
  let clock=0,trackStopped=false,streamFps=null,sceneSize=null,recordOptions=null,frameCount=0;
  const classes=new Set(),canvas={captureStream(fps){streamFps=fps;return {getTracks:()=>[{stop(){trackStopped=true}}]}}};
@@ -15,7 +16,7 @@ function harness(){
  }
  const window={MediaRecorder:Recorder,LOM_HOSTED:{async scene(state,width,height){sceneSize={width,height};return {canvas,context:{},scene:{}}}}};
  const context=vm.createContext({window,MediaRecorder:Recorder,HTMLCanvasElement:{prototype:{captureStream(){}}},document:{querySelector(){return {}},addEventListener(){},documentElement:{classList:{add:c=>classes.add(c),remove:c=>classes.delete(c)}}},LOM:{renderFrame(){frameCount++;clock+=2}},Blob,DOMException,performance:{now:()=>clock},setTimeout(fn,delay){clock+=delay;queueMicrotask(fn)},console});
- vm.runInContext(settingsSource,context);vm.runInContext(hostedSource,context);
+ vm.runInContext(settingsSource,context);vm.runInContext(sharedSource,context);vm.runInContext(hostedSource,context);
  return {window,summary:()=>({trackStopped,streamFps,sceneSize,recordOptions,frameCount,classes})};
 }
 await test('recording preserves saved 4K60, portrait, and fractional frame rate settings',async()=>{
