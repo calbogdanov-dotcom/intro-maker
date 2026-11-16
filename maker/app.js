@@ -35,11 +35,12 @@
     logoId: 'sample-spark', tintLogo: true, company: 'Your\nBrand', tagline: '', layout: 'horizontal', align: 'center',
     font: 'Poppins', fontWeight: 700, logoSize: 170, textSize: 108, gap: 30, lineHeight: 0.9, tracking: -0.01, tagSize: 30, tagColor: 'accent', offsetY: 0,
     styleId: 'black-mint', colors: clone(STYLES[0].c),
-    duration: 6, delay: 0.5, revealDur: 1.4, textDelay: 0.35, bgIntensity: 1, bgSpeed: 1, camera: 'in', intro: 'fade', outro: 'none', seed: 7,
+    duration: 6, delay: 0.5, revealDur: 1.4, logoEaseIn: 0, logoEaseOut: 0, logoSpeed: 1, textDelay: 0.35, bgIntensity: 1, bgSpeed: 1, camera: 'in', intro: 'fade', outro: 'none', seed: 7,
     glow: 0.35, vignette: 0.8, grain: 0.4,
     resolution: '1920x1080', fps: 30, codec: 'prores4444', transparent: false,
   };
-  const LOOK_KEYS = ['mode', 'bg', 'logoAnim', 'textAnim', 'emerge', 'emergeBg', 'emergeHold', 'styleId', 'colors', 'duration', 'delay', 'revealDur', 'textDelay', 'bgIntensity', 'bgSpeed', 'camera', 'intro', 'outro', 'glow', 'vignette', 'grain'];
+  const LOGO_MOTION_DEFAULTS = { logoEaseIn: 0, logoEaseOut: 0, logoSpeed: 1 };
+  const LOOK_KEYS = ['mode', 'bg', 'logoAnim', 'textAnim', 'emerge', 'emergeBg', 'emergeHold', 'styleId', 'colors', 'duration', 'delay', 'revealDur', 'logoEaseIn', 'logoEaseOut', 'logoSpeed', 'textDelay', 'bgIntensity', 'bgSpeed', 'camera', 'intro', 'outro', 'glow', 'vignette', 'grain'];
   const STARTERS = [
     { name: 'Backlit rise · particles', state: { mode: 'separate', bg: 'particles', logoAnim: 'backlit', textAnim: 'match', styleId: 'black-mint', colors: STYLES[0].c, camera: 'in', intro: 'fade', glow: 0.35, vignette: 0.8, grain: 0.4, delay: 0.5, revealDur: 1.4 } },
     { name: 'Clean slide · light', state: { mode: 'separate', bg: 'solid', logoAnim: 'slide', textAnim: 'match', styleId: 'light', colors: STYLES[3].c, camera: 'none', intro: 'none', glow: 0, vignette: 0.3, grain: 0, delay: 0.4, revealDur: 1.3 } },
@@ -164,7 +165,8 @@
   }
 
   // ───────────── UI build ─────────────
-  const NUMS = { logoSize: 0, textSize: 0, gap: 0, lineHeight: 2, tracking: 3, tagSize: 0, offsetY: 0, duration: 1, delay: 2, revealDur: 2, textDelay: 2, bgIntensity: 2, bgSpeed: 2, glow: 2, vignette: 2, grain: 2 };
+  const NUMS = { logoSize: 0, textSize: 0, gap: 0, lineHeight: 2, tracking: 3, tagSize: 0, offsetY: 0, duration: 1, delay: 2, revealDur: 2, logoEaseIn: 0, logoEaseOut: 0, logoSpeed: 2, textDelay: 2, bgIntensity: 2, bgSpeed: 2, glow: 2, vignette: 2, grain: 2 };
+  const sliderValue = (key, value) => (+value).toFixed(NUMS[key]) + (key === 'logoSpeed' ? '×' : key === 'logoEaseIn' || key === 'logoEaseOut' ? '%' : '');
   const SELECTS = ['font', 'fontWeight', 'textAnim', 'emergeBg', 'emergeHold', 'camera', 'intro', 'outro', 'resolution', 'fps', 'codec'];
   const NUMERIC_SELECT = { fontWeight: 1, fps: 1 };
   const CHECKS = ['tintLogo', 'transparent'];
@@ -179,9 +181,9 @@
     for (const k of Object.keys(NUMS)) {
       const el = $('#' + k);
       el.addEventListener('input', () => {
-        st[k] = +el.value; el.nextElementSibling.textContent = (+el.value).toFixed(NUMS[k]);
+        st[k] = +el.value; el.nextElementSibling.textContent = sliderValue(k, el.value);
         if (k === 'delay' || k === 'revealDur' || k === 'textDelay') { t = Math.min(st.duration, st.delay + st.revealDur * 0.6); playing = false; updatePlay(); }
-        changed();
+        changed({ restart: k in LOGO_MOTION_DEFAULTS });
       });
     }
     for (const k of SELECTS) $('#' + k).addEventListener('change', e => {
@@ -410,22 +412,23 @@
     if (!v) return;
     const P = v[0] === 's' ? STARTERS[+v.slice(1)] : lib.presets[+v.slice(1)];
     if (!P) return;
-    const next = Object.assign(clone(st), clone(P.state));
+    const next = Object.assign(clone(st), LOGO_MOTION_DEFAULTS, clone(P.state));
     if (!allLogos().some(l => l.id === next.logoId)) next.logoId = st.logoId;
     st = Object.assign(clone(DEFAULTS), next);
     syncAll(); changed({ restart: true });
     $('#presetSel').value = v;
     toast(`Preset: ${P.name}`);
   }
-  function savePreset() {
+  async function savePreset() {
     const name = prompt('Name this preset (saves everything: logo, text, colours, animation, export settings):', `${(st.company || 'Logo').split('\n').join(' ')} — ${describe()}`);
     if (!name) return;
     const i = lib.presets.findIndex(p => p.name === name);
     const P = { name, state: clone(st) };
     if (i >= 0) lib.presets[i] = P; else lib.presets.push(P);
-    saveLib(); syncPresets();
+    syncPresets();
     $('#presetSel').value = 'u' + (i >= 0 ? i : lib.presets.length - 1);
-    toast('Preset saved');
+    try { await flushSave(); toast('Preset saved'); }
+    catch (error) { toast('Preset is still in this window. Could not save: ' + (error.message || error)); }
   }
   function deletePreset() {
     const v = $('#presetSel').value;
@@ -466,7 +469,7 @@
   }
   function syncAll() {
     document.body.className = 'mode-' + st.mode;
-    for (const k of Object.keys(NUMS)) { const el = $('#' + k); el.value = st[k]; el.nextElementSibling.textContent = (+st[k]).toFixed(NUMS[k]); }
+    for (const k of Object.keys(NUMS)) { const el = $('#' + k); el.value = st[k]; el.nextElementSibling.textContent = sliderValue(k, st[k]); }
     for (const k of SELECTS) { const el = $('#' + k); if (k === 'font') syncFontList(); else el.value = String(st[k]); }
     for (const k of CHECKS) $('#' + k).checked = !!st[k];
     for (const [id, k] of Object.entries(SEGS)) syncSeg(id, k);
