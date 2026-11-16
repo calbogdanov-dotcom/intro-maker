@@ -28,3 +28,5 @@ services:
         value: owner
       - key: INTRO_MAKER_PASSWORD
         generateValue: true
+      - key: INTRO_MAKER_SHARED_EDITING
+        value: "true"
