@@ -1,4 +1,4 @@
-// Private hosted storage and review publishing for the version 1 renderer.
+// Shared hosted storage and review publishing for the version 1 renderer.
 'use strict';
 (function () {
   const $ = s => document.querySelector(s);
@@ -8,49 +8,29 @@
   const resources = [];
   function cloudStatus() {
     const box = $('#cloudStatus'); if (!box) return;
+    pendingWrites = resources.reduce((total, resource) => total + resource.pending, 0);
     const error = saveError || resources.find(resource => resource.error)?.error;
-    box.textContent = error ? error.message : pendingWrites ? 'Saving privately…' : 'All changes saved privately';
+    box.textContent = error ? error.message : pendingWrites ? 'Saving to shared workspace…' : 'All changes saved to shared workspace';
     box.dataset.error = error ? 'true' : 'false';
-    $('#cloudRetry').hidden = !error || error.conflict;
+    $('#cloudRetry').hidden = !error;
   }
   async function api(path, options = {}) {
     const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store', ...options });
     let result; try { result = await response.json(); } catch { result = {}; }
     if (!response.ok) {
-      const error = new Error(response.status === 401 ? 'Your sign-in expired. Reload and sign in again.' : response.status === 403 ? 'Only the owner can access this workspace.' : result.error || 'The server could not save your changes.');
-      if (response.status === 409 || response.status === 412) { error.message = 'This workspace changed in another window. Reload before making more changes.'; error.conflict = true; }
+      const error = new Error(result.error || 'The server could not save your changes.');
+      error.status = response.status;
       throw error;
     }
     return result;
   }
-  class CloudResource {
-    constructor(path, key) { this.path = path; this.key = key; this.revision = null; this.loaded = false; this.latest = null; this.queue = Promise.resolve(); this.conflict = null; this.error = null; resources.push(this); }
-    async load() {
-      const result = await api(this.path); this.revision = result.revision ?? null; this.loaded = true;
-      this.latest = result[this.key] ?? null; return clone(this.latest);
-    }
-    save(value) {
-      if (!this.loaded) return Promise.reject(new Error('The workspace has not loaded yet.'));
-      this.latest = clone(value); const snapshot = clone(value); pendingWrites++; cloudStatus();
-      this.queue = this.queue.catch(() => {}).then(async () => {
-        try {
-          if (this.conflict) throw this.conflict;
-          const headers = { 'content-type': 'application/json' };
-          if (this.revision != null) headers['if-match'] = String(this.revision);
-          const result = await api(this.path, { method: 'PUT', headers, body: JSON.stringify({ [this.key]: snapshot, revision: this.revision }) });
-          this.revision = result.revision ?? null; this.error = null;
-        } catch (error) { if (error.conflict) this.conflict = error; this.error = error; throw error; }
-        finally { pendingWrites--; cloudStatus(); }
-      });
-      // Keep rejected autosaves handled while returning the actual failure to explicit saves.
-      this.queue.catch(() => {});
-      return this.queue;
-    }
-    async flush() { await this.queue; if (this.conflict) throw this.conflict; }
-    retry() { return this.save(this.latest); }
+  function cloudResource(path, key) {
+    const resource = new window.LOM_SHARED.Resource(path, key, { request: api, onChange: cloudStatus, acceptMerged: key === 'drafts' });
+    resources.push(resource);
+    return resource;
   }
-  const libraryResource = new CloudResource('/api/maker/library', 'library');
-  const draftsResource = new CloudResource('/api/maker/drafts', 'drafts');
+  const libraryResource = cloudResource('/api/maker/library', 'library');
+  const draftsResource = cloudResource('/api/maker/drafts', 'drafts');
   window.LOM_STORAGE = { load: () => libraryResource.load(), save: value => libraryResource.save(value) };
 
   function aborted() { return new DOMException('Recording cancelled.', 'AbortError'); }
@@ -129,21 +109,22 @@
     $('#reviewPublish').disabled = !iter?.items.length;
   }
   async function saveDrafts(message) {
-    await draftsResource.save(drafts);
+    drafts = clone(await draftsResource.save(drafts));
     if (message) feedback(message);
   }
   async function restoreSlot() {
     const item = currentItem(); if (!item) return;
     await window.LOM_HOSTED.apply(item.state);
-    feedback('Restored ' + item.title + '. Changes stay private until published.');
+    feedback('Restored ' + item.title + '. Changes stay in the shared workspace until published.');
   }
   function handle(action) {
     return async event => {
       if (busy) return;
+      busy = true;
       const button = event?.currentTarget; if (button?.tagName === 'BUTTON') button.disabled = true;
       try { await action(event); }
       catch (error) { feedback(error.message || String(error), true); }
-      finally { if (button?.tagName === 'BUTTON') button.disabled = false; renderReviews(); }
+      finally { busy = false; if (button?.tagName === 'BUTTON') button.disabled = false; renderReviews(); }
     };
   }
   async function publish() {
@@ -177,8 +158,8 @@
     } catch (error) {
       const cancelled = error.name === 'AbortError';
       $('#publishTitle').textContent = cancelled ? 'Publishing cancelled' : 'Could not publish';
-      $('#publishInfo').textContent = cancelled ? 'Your private drafts are saved. The public review was not changed.' : error.message || String(error);
-      feedback(cancelled ? 'Publishing cancelled. Your private drafts are saved.' : error.message || String(error), !cancelled);
+      $('#publishInfo').textContent = cancelled ? 'Your drafts are saved in the shared workspace. The public review was not changed.' : error.message || String(error);
+      feedback(cancelled ? 'Publishing cancelled. Your drafts are saved in the shared workspace.' : error.message || String(error), !cancelled);
     } finally {
       busy = false; publishController = null; document.documentElement.classList.remove('publishing');
       $('main').inert = false; $('.top').inert = false;
@@ -194,7 +175,7 @@
       selectedNumber = drafts.iterations[0].number; renderReviews(); cloudStatus();
       $('#cloudRetry').onclick = async () => {
         try { for (const resource of resources) if (resource.error && resource.latest) await resource.retry(); saveError = null; cloudStatus(); }
-        catch (error) { saveError = error; cloudStatus(); }
+        catch { cloudStatus(); }
       };
       $('#libraryImport').onchange = async event => {
         const file = event.target.files?.[0]; if (!file) return;
@@ -219,24 +200,24 @@
         if (number > 99) throw new Error('This workspace supports up to 99 iterations.');
         const title = prompt('Iteration name:', 'Iteration ' + number); if (!title?.trim()) return;
         drafts.iterations.push({ number, title: title.trim().slice(0, 80), count: 2, items: [] }); selectedNumber = number; selectedSlot = 1;
-        await saveDrafts('New iteration saved privately.');
+        await saveDrafts('New iteration saved to the shared workspace.');
       });
       $('#reviewRename').onclick = handle(async () => {
         const iter = iteration(), title = prompt('Iteration name:', iter.title); if (!title?.trim()) return;
-        iter.title = title.trim().slice(0, 80); await saveDrafts('Iteration renamed privately. Publish to update its public title.');
+        iter.title = title.trim().slice(0, 80); await saveDrafts('Iteration renamed in the shared workspace. Publish to update its public title.');
       });
       $('#reviewCount').onchange = handle(async event => {
         const iter = iteration(), count = +event.target.value;
         if (iter.items.some(item => item.slot > count) && !confirm('Remove the draft options outside these ' + count + ' slots? The published review changes only when you publish.')) return;
         iter.count = count; iter.items = iter.items.filter(item => item.slot <= count); selectedSlot = Math.min(selectedSlot, count);
-        await saveDrafts('Option count saved privately.');
+        await saveDrafts('Option count saved to the shared workspace.');
       });
       $('#reviewSave').onclick = handle(async () => {
         const iter = iteration(), title = $('#reviewTitle').value.trim().slice(0, 120) || 'Intro ' + selectedSlot;
         await window.LOM_HOSTED.flushSave();
         iter.items = iter.items.filter(item => item.slot !== selectedSlot);
         iter.items.push({ slot: selectedSlot, title, state: window.LOM_HOSTED.state() }); iter.items.sort((a, b) => a.slot - b.slot);
-        await saveDrafts(title + ' saved privately. Publish the iteration when ready for review.');
+        await saveDrafts(title + ' saved to the shared workspace. Publish the iteration when ready for review.');
       });
       $('#reviewRestore').onclick = handle(restoreSlot);
       $('#reviewRemove').onclick = handle(async () => {
@@ -247,7 +228,7 @@
       $('#publishCancel').onclick = () => { if (publishController) publishController.abort(); else $('#publishModal').hidden = true; };
       window.addEventListener('beforeunload', event => { if (pendingWrites || busy || resources.some(resource => resource.error)) { event.preventDefault(); event.returnValue = ''; } });
     } catch (error) {
-      $('#workspaceErrorText').textContent = error.message || 'Your private workspace could not load. Please reload.';
+      $('#workspaceErrorText').textContent = error.message || 'The shared workspace could not load. Please reload.';
       $('#workspaceError').hidden = false; saveError = error; cloudStatus();
     }
   });
