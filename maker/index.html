@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intro Maker</title>
+<meta name="robots" content="noindex,nofollow,noarchive">
+<base href="/maker/">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="workspacebar"><span class="private-label">Private workspace</span><span id="cloudStatus" role="status" aria-live="polite">Loading your workspace…</span><div class="grow"></div><button class="ghost" id="cloudRetry" hidden>Retry save</button><a href="/jingles/">Jingle uploader</a><a href="/" target="_blank" rel="noopener">Open Intro Review ↗</a><a href="/logout">Sign out</a></header>
+<header class="top">
+  <div class="brand"><span class="logo-dot"></span>Intro Maker</div>
+  <div class="seg big" id="modeSeg" role="tablist">
+    <button data-v="separate">Logo + Background</button>
+    <button data-v="emerge">Emerge from background</button>
+  </div>
+  <div class="grow"></div>
+  <div class="presetbar">
+    <select id="presetSel" title="Your saved presets"></select>
+    <button id="presetSave" class="ghost">Save preset</button>
+    <button id="presetDel" class="ghost icon" title="Delete selected preset">✕</button>
+  </div>
+  <button id="exportBtn" class="primary">Export video</button>
+</header>
+
+<main>
+  <section class="stage">
+    <div class="viewport" id="viewport"><canvas id="preview"></canvas><div class="checker" id="checker"></div></div>
+    <div class="transport">
+      <button id="playBtn" class="round" title="Play / pause (space)">❚❚</button>
+      <button id="restartBtn" class="round" title="Restart">↺</button>
+      <input type="range" id="scrub" min="0" max="1000" value="0">
+      <span id="timeLbl" class="mono">0.00 / 6.00 s</span>
+      <label class="chk"><input type="checkbox" id="loopChk" checked> Loop</label>
+    </div>
+    <div class="summary" id="summary"></div>
+  </section>
+
+  <aside class="panel" id="panel">
+    <details open class="sec review-publishing"><summary>Intro Review</summary>
+      <label class="fld">Iteration<select id="reviewIteration" aria-label="Review iteration"></select></label>
+      <div class="row review-actions"><button class="ghost" id="reviewNew">New iteration</button><button class="ghost" id="reviewRename">Rename</button></div>
+      <label class="fld">Number of options<select id="reviewCount"><option value="2">2 options</option><option value="4">4 options</option><option value="8">8 options</option></select></label>
+      <div id="reviewSlots" class="review-slots" role="group" aria-label="Intro slots"></div>
+      <label class="fld">Option name<input type="text" id="reviewTitle" maxlength="120" placeholder="Intro 1"></label>
+      <div class="row review-actions"><button class="ghost" id="reviewSave">Save to Intro 1</button><button class="ghost" id="reviewRestore">Restore saved</button><button class="ghost" id="reviewRemove">Clear slot</button></div>
+      <p class="hint" id="reviewDraftStatus">Publishing uses each slot’s saved resolution and frame rate. Save changes to a slot before publishing.</p>
+      <button class="primary publish-button" id="reviewPublish">Publish iteration</button>
+      <div class="row review-actions"><label class="btn ghost file small">Import Mac library…<input type="file" id="libraryImport" accept=".json,application/json"></label><button class="ghost" id="libraryBackup">Back up library</button></div>
+      <p class="hint">Import your existing library.json to bring over Mac presets, logos and fonts. Existing saved items are kept.</p>
+    </details>
+    <!-- LOGO -->
+    <details open class="sec"><summary>Logo</summary>
+      <div class="lib" id="logoLib"></div>
+      <div class="row">
+        <label class="btn ghost file">Upload logo…<input type="file" id="logoUpload" accept=".svg,.png,.jpg,.jpeg,.webp,image/*" multiple></label>
+        <label class="chk"><input type="checkbox" id="tintLogo"> Recolour with Logo colour</label>
+      </div>
+      <p class="hint">Click a version to switch logos; it brings its own text, font and colours. Upload more versions (mark, full lockup, black, white…); SVG or transparent PNG work best.</p>
+    </details>
+
+    <!-- TEXT -->
+    <details open class="sec"><summary>Company text</summary>
+      <label class="fld">Company name <span class="hint">(Enter = new line)</span><textarea id="company" rows="2" spellcheck="false"></textarea></label>
+      <label class="fld">Tagline <span class="hint">(optional, e.g. PODCAST)</span><input type="text" id="tagline" spellcheck="false"></label>
+      <div class="fld">Layout<div class="seg" id="layoutSeg">
+        <button data-v="lockup" hidden>As designed</button><button data-v="horizontal">Side by side</button><button data-v="stacked">Stacked</button><button data-v="logo">Logo only</button><button data-v="text">Text only</button><button data-v="icon">App icon</button>
+      </div></div>
+      <p class="hint" id="lockupHint" hidden>As designed: the text sits on the logo exactly as in the artwork. Logo size scales the whole thing; Text size, Gap and Line height don't apply.</p>
+      <div class="fld">Align (stacked)<div class="seg" id="alignSeg"><button data-v="center">Centre</button><button data-v="left">Left</button></div></div>
+      <div class="grid2">
+        <label class="fld">Font<select id="font"></select></label>
+        <label class="fld">Weight<select id="fontWeight">
+          <option value="400">Regular</option><option value="500">Medium</option><option value="600">Semibold</option><option value="700">Bold</option><option value="800">Heavy</option><option value="900">Black</option>
+        </select></label>
+      </div>
+      <label class="btn ghost file small">Upload font…<input type="file" id="fontUpload" accept=".ttf,.otf,.woff,.woff2"></label>
+      <div class="sliders">
+        <label>Logo size<input type="range" id="logoSize" min="40" max="420" step="1"><output></output></label>
+        <label>Text size<input type="range" id="textSize" min="24" max="260" step="1"><output></output></label>
+        <label>Gap<input type="range" id="gap" min="0" max="160" step="1"><output></output></label>
+        <label>Line height<input type="range" id="lineHeight" min="0.7" max="1.6" step="0.01"><output></output></label>
+        <label>Letter spacing<input type="range" id="tracking" min="-0.08" max="0.4" step="0.005"><output></output></label>
+        <label>Tagline size<input type="range" id="tagSize" min="12" max="90" step="1"><output></output></label>
+        <label>Vertical offset<input type="range" id="offsetY" min="-300" max="300" step="1"><output></output></label>
+      </div>
+      <div class="fld">Tagline colour<div class="seg" id="tagColorSeg"><button data-v="accent">Accent</button><button data-v="text">Text</button></div></div>
+    </details>
+
+    <!-- STYLE / COLOURS -->
+    <details open class="sec"><summary>Logo style &amp; colours</summary>
+      <div class="chips" id="styleChips"></div>
+      <div class="colors" id="colorRows"></div>
+    </details>
+
+    <!-- BACKGROUND (separate) -->
+    <details open class="sec only-separate"><summary>Background animation</summary>
+      <div class="cards" id="bgCards"></div>
+    </details>
+
+    <!-- LOGO ANIMATION (separate) -->
+    <details open class="sec only-separate"><summary>Logo animation</summary>
+      <div class="cards" id="logoCards"></div>
+      <label class="fld">Text animation<select id="textAnim"></select></label>
+    </details>
+
+    <!-- EMERGE -->
+    <details open class="sec only-emerge"><summary>Emerge style</summary>
+      <div class="cards" id="emergeCards"></div>
+      <div class="subhead">After it emerges</div>
+      <div class="grid2">
+        <label class="fld">Background<select id="emergeBg"></select></label>
+        <label class="fld">Logo<select id="emergeHold"></select></label>
+      </div>
+      <p class="hint">Once the logo has formed, the background cross-fades into your pick and the logo keeps this motion while it holds.</p>
+    </details>
+
+    <!-- BG controls shared -->
+    <details open class="sec"><summary>Motion &amp; timing</summary>
+      <div class="sliders">
+        <label>Duration (s)<input type="range" id="duration" min="2" max="15" step="0.1"><output></output></label>
+        <label>Logo starts at (s)<input type="range" id="delay" min="0" max="5" step="0.05"><output></output></label>
+        <label>Reveal length (s)<input type="range" id="revealDur" min="0.3" max="4" step="0.05"><output></output></label>
+        <label>Text delay (s)<input type="range" id="textDelay" min="0" max="2.5" step="0.05"><output></output></label>
+        <label>Background amount<input type="range" id="bgIntensity" min="0" max="2" step="0.05"><output></output></label>
+        <label>Background speed<input type="range" id="bgSpeed" min="0" max="3" step="0.05"><output></output></label>
+      </div>
+      <div class="grid2">
+        <label class="fld">Camera<select id="camera"><option value="none">Still</option><option value="in">Slow push in</option><option value="out">Slow pull out</option></select></label>
+        <label class="fld">Intro<select id="intro"><option value="none">Cut in</option><option value="fade">Fade from black</option></select></label>
+        <label class="fld">Outro<select id="outro"><option value="none">Hold</option><option value="logo">Fade logo out</option><option value="black">Fade to black</option></select></label>
+        <div class="fld">Variation<div class="row"><input type="number" id="seed" min="0" max="9999" step="1"><button class="ghost" id="shuffle" title="New random variation">🎲</button></div></div>
+      </div>
+    </details>
+
+    <details open class="sec"><summary>Finish</summary>
+      <div class="sliders">
+        <label>Glow<input type="range" id="glow" min="0" max="1.5" step="0.01"><output></output></label>
+        <label>Vignette<input type="range" id="vignette" min="0" max="1.5" step="0.01"><output></output></label>
+        <label>Film grain<input type="range" id="grain" min="0" max="2" step="0.01"><output></output></label>
+      </div>
+    </details>
+
+    <details open class="sec"><summary>Export</summary>
+      <div class="grid2">
+        <label class="fld">Size<select id="resolution">
+          <option value="1920x1080">1920 × 1080 (HD)</option><option value="3840x2160">3840 × 2160 (4K)</option><option value="1280x720">1280 × 720</option>
+          <option value="1080x1920">1080 × 1920 (vertical)</option><option value="1080x1080">1080 × 1080 (square)</option><option value="1080x1350">1080 × 1350 (4:5)</option>
+        </select></label>
+        <label class="fld">Frame rate<select id="fps">
+          <option value="24">24</option><option value="25">25</option><option value="29.97">29.97</option><option value="30">30</option><option value="50">50</option><option value="59.94">59.94</option><option value="60">60</option>
+        </select></label>
+        <label class="fld" id="codecField" hidden>Codec<select id="codec">
+          <option value="prores4444">ProRes 4444 (supports transparency)</option><option value="prores422hq">ProRes 422 HQ</option><option value="h264">H.264 (small file)</option>
+        </select></label>
+        <label class="chk fld"><input type="checkbox" id="transparent"> Transparent preview</label>
+      </div>
+      <p class="hint" id="exportHint"></p>
+    </details>
+  </aside>
+</main>
+
+<div class="modal" id="exportModal" hidden>
+  <div class="box">
+    <h3 id="exTitle">Exporting…</h3>
+    <div class="bar"><div id="exBar"></div></div>
+    <p id="exInfo" class="mono"></p>
+    <div class="row end"><button id="exReveal" class="ghost" hidden>Show in Finder</button><button id="exCancel" class="ghost">Cancel</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<div class="modal" id="workspaceError" hidden><div class="box"><h3>Workspace unavailable</h3><p id="workspaceErrorText"></p><button class="primary" onclick="location.reload()">Reload workspace</button></div></div>
+<div class="modal" id="publishModal" hidden><div class="box"><h3 id="publishTitle">Preparing review…</h3><div class="bar"><div id="publishBar"></div></div><p id="publishInfo" class="mono"></p><div class="row end"><button class="ghost" id="publishCancel">Cancel</button></div></div></div>
+<script src="video-settings.js"></script>
+<script src="hosted.js"></script>
+<script src="engine.js"></script>
+<script src="backgrounds.js"></script>
+<script src="logo-anims.js"></script>
+<script src="emerge.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
