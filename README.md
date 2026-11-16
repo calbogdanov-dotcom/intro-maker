@@ -6,6 +6,8 @@ The complete application runs on your machine with **Node.js 22 or newer**. It i
 
 ![Intro Maker editor with generic sample artwork](docs/editor.jpg)
 
+This GitHub repository is the source of truth for application code. Make changes on branches, open pull requests, and merge into `main`. Local folders are working checkouts; production deployment must build the GitHub commit.
+
 ## Quick start
 
 Install [Node.js](https://nodejs.org/) 22 or newer, then clone this repository (or download and extract its ZIP):
@@ -76,6 +78,14 @@ Keep `data/` and `.env` private and outside any public static directory. Route a
 **Use one server process per data directory.** Disk storage uses atomic writes and revision checks within that process. Do not use clustering, multiple replicas, or shared-volume concurrent servers. For a large multi-instance service, supply a transactional shared storage adapter and an appropriate authentication deployment.
 
 The review board and its published recordings, audio, and feedback are public to anyone who can reach the server. Private presets, draft settings, and unpublished uploads require owner authorization. The legacy service publishing endpoints are disabled in the standalone server.
+
+## Automatic deployment from GitHub
+
+[`render.yaml`](render.yaml) defines a single Node service with a persistent disk and automatic deployment from `main` **after CI checks pass**. Connect this repository through Render's GitHub integration and create a Blueprint from it. A bare public-repository URL does not enable automatic deployment.
+
+The Blueprint uses paid compute and a 1 GB persistent disk. Review the current Render price before creating the service. It generates an owner password in Render; retrieve it from the service environment settings. Keep the disk and generated password when syncing later code changes.
+
+The server uses Render's supplied HTTPS URL automatically. For a custom domain, set `INTRO_MAKER_ORIGIN` to the exact HTTPS origin. Verify the new service and migrate live data before moving an existing domain. See the [deployment and migration plan](docs/DEPLOYMENT.md).
 
 ## Backups and updates
 
