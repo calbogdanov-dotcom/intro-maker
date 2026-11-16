@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="600" height="600">
+  <title>Orbit sample logo</title>
+  <path fill="#00FF99" fill-rule="evenodd" d="M50 8a42 42 0 1 0 0 84 42 42 0 0 0 0-84Zm0 12a30 30 0 1 1 0 60 30 30 0 0 1 0-60Z"/>
+  <circle cx="50" cy="50" r="12" fill="#00FF99"/>
+  <circle cx="82" cy="23" r="12" fill="#00FF99"/>
+</svg>
