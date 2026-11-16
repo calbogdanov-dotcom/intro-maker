@@ -124,8 +124,8 @@ const worker = {
   },
 };
 
-async function runningApp(selectedWorker = worker) {
-  const server = createApp({ worker: selectedWorker, dataDir: join(await temporaryRoot(), 'data'), password, username: 'owner', origin: configuredOrigin });
+async function runningApp(selectedWorker = worker, options = {}) {
+  const server = createApp({ worker: selectedWorker, dataDir: join(await temporaryRoot(), 'data'), password, username: 'owner', origin: configuredOrigin, ...options });
   await new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolve);
@@ -302,4 +302,27 @@ test('real application keeps uploads private until publication and serves video 
   assert.equal(audioRange.text, 'RIFF');
   assert.equal(JSON.parse((await app.request('/api/board')).text).iterations[0].items[0].title, 'Example intro');
   assert.equal(JSON.parse((await app.request('/api/jingles/board')).text).iterations[0].items[0].title, 'Jingle 1');
+});
+
+
+test('shared editing opens workspace routes while preserving origin checks and owner-only moderation', async t => {
+  const { default: builtWorker } = await import('../dist/server/index.js');
+  const app = await runningApp(builtWorker, { sharedEditing: true });
+  t.after(() => app.close());
+  for (const path of ['/maker/', '/maker/app.js', '/maker/shared-saves.js', '/jingles/', '/api/maker/library']) {
+    assert.equal((await app.request(path)).status, 200, path);
+  }
+  assert.match((await app.request('/')).text, /id="edit-workspace" href="\/maker\/"/);
+  const library = { logos: [], fonts: [], presets: [{ name: 'Shared preset', state: { company: 'Shared' } }], last: null };
+  const save = await app.request('/api/maker/library', { method: 'PUT', headers: { origin: configuredOrigin, 'content-type': 'application/json' }, body: JSON.stringify({ library, revision: null }) });
+  assert.equal(save.status, 200);
+  assert.deepEqual(JSON.parse((await app.request('/api/maker/library')).text).library, library);
+  const foreign = await app.request('/api/maker/library', { method: 'PUT', headers: { origin: 'https://other.example', 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(foreign.status, 403);
+  const moderation = await app.request('/api/maker/comments/remove', { method: 'POST', headers: { origin: configuredOrigin, 'content-type': 'application/json', 'oai-authenticated-user-id': 'spoofed', 'oai-authenticated-user-email': 'owner@example.com' }, body: '{}' });
+  assert.equal(moderation.status, 401);
+  assert.equal(JSON.parse((await app.request('/api/comments?iteration=1&slot=1')).text).canRemove, false);
+  const login = await logIn(app);
+  const cookie = login.headers['set-cookie'][0].split(';')[0];
+  assert.equal(JSON.parse((await app.request('/api/comments?iteration=1&slot=1', { headers: { cookie } })).text).canRemove, true);
 });

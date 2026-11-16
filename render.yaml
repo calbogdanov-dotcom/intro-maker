@@ -1,0 +1,32 @@
+# Connect this repository through Render's GitHub integration.
+# One instance is required because the disk store uses process-local locks.
+services:
+  - type: web
+    name: intro-maker
+    runtime: node
+    plan: 0.5c-512mb
+    region: frankfurt
+    branch: main
+    autoDeployTrigger: checksPass
+    numInstances: 1
+    buildCommand: node scripts/build.mjs
+    startCommand: node server/index.mjs
+    disk:
+      name: intro-maker-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "10000"
+      - key: INTRO_MAKER_DATA_DIR
+        value: /var/data/intro-maker
+      - key: INTRO_MAKER_USERNAME
+        value: owner
+      - key: INTRO_MAKER_PASSWORD
+        generateValue: true
+      - key: INTRO_MAKER_SHARED_EDITING
+        value: "true"

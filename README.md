@@ -6,6 +6,8 @@ The complete application runs on your machine with **Node.js 22 or newer**. It i
 
 ![Intro Maker editor with generic sample artwork](docs/editor.jpg)
 
+This GitHub repository is the source of truth for application code. Make changes on branches, open pull requests, and merge into `main`. Local folders are working checkouts; production deployment must build the GitHub commit.
+
 ## Quick start
 
 Install [Node.js](https://nodejs.org/) 22 or newer, then clone this repository (or download and extract its ZIP):
@@ -23,13 +25,13 @@ Open the newly created `.env` file to read your generated username and password.
 - Jingle uploader: **http://localhost:8787/jingles/**
 - Review board: **http://localhost:8787/**
 
-Use `localhost` exactly: the server checks the configured host. The board starts empty. The editor and uploader require owner sign-in; the public board has no editor or uploader link.
+Use `localhost` exactly: the server checks the configured host. The board starts empty. By default, the editor and uploader require owner sign-in. Set `INTRO_MAKER_SHARED_EDITING=true` to enable shared editing and Edit links on the review board. In shared mode, any visitor can edit, upload, save presets and publish; comment moderation still requires the owner login.
 
 ## Create and review
 
 1. Open the editor, choose a bundled sample or upload your own SVG/PNG logo, then adjust text, animation, colors, timing, and output settings.
 2. Save reusable presets. In the review panel, select an iteration and 2, 4, or 8 slots, and save the current intro to a slot.
-3. **Publish iteration** records the saved slots in your browser and makes those recordings available on the review board. Autosaving and uploading alone keep work private.
+3. **Publish iteration** records the saved slots in your browser and makes those recordings available on the review board. Autosaving and uploading alone keep recordings off the public review board. In shared mode, workspace drafts and source settings are available to other editors.
 4. Use the jingle uploader to upload audio options, then publish its iteration separately.
 5. Share the board URL or an individual `/intro/{iteration}/{slot}` or `/jingle/{iteration}/{slot}` URL with reviewers.
 
@@ -43,6 +45,7 @@ Browser exports use MP4 or WebM according to browser support. Recording happens 
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
+| `INTRO_MAKER_SHARED_EDITING` | `false` | Allow every visitor to edit and publish when `true`; owner sign-in still controls moderation |
 | `INTRO_MAKER_USERNAME` | `owner` | Owner sign-in name |
 | `INTRO_MAKER_PASSWORD` | Required; setup generates one | At least 12 characters; use a long random password |
 | `INTRO_MAKER_ORIGIN` | `http://localhost:8787` | Exact browser-facing origin, with no path |
@@ -75,7 +78,15 @@ Keep `data/` and `.env` private and outside any public static directory. Route a
 
 **Use one server process per data directory.** Disk storage uses atomic writes and revision checks within that process. Do not use clustering, multiple replicas, or shared-volume concurrent servers. For a large multi-instance service, supply a transactional shared storage adapter and an appropriate authentication deployment.
 
-The review board and its published recordings, audio, and feedback are public to anyone who can reach the server. Private presets, draft settings, and unpublished uploads require owner authorization. The legacy service publishing endpoints are disabled in the standalone server.
+The review board and its published recordings, audio, and feedback are public to anyone who can reach the server. In private mode, presets, draft settings, and unpublished upload previews require owner authorization. In shared mode, workspace data and draft previews are accessible to other visitors; only explicit Publish changes the review board. The legacy service publishing endpoints are disabled in the standalone server.
+
+## Automatic deployment from GitHub
+
+[`render.yaml`](render.yaml) defines a single Node service with a persistent disk and automatic deployment from `main` **after CI checks pass**. Connect this repository through Render's GitHub integration and create a Blueprint from it. A bare public-repository URL does not enable automatic deployment.
+
+The Blueprint enables shared editing to match the current hosted project. It uses paid compute and a 1 GB persistent disk. Review the current Render price before creating the service. It generates an owner password in Render; retrieve it from the service environment settings. Keep the disk and generated password when syncing later code changes.
+
+The server uses Render's supplied HTTPS URL automatically. For a custom domain, set `INTRO_MAKER_ORIGIN` to the exact HTTPS origin. Verify the new service and migrate live data before moving an existing domain. See the [deployment and migration plan](docs/DEPLOYMENT.md).
 
 ## Backups and updates
 
@@ -107,3 +118,9 @@ Tests cover owner authorization, draft privacy, publishing, persistent disk stor
 ## License
 
 [MIT](LICENSE). Poppins is bundled under the [SIL Open Font License 1.1](maker/assets/fonts/OFL.txt). See [third-party notices](THIRD_PARTY_NOTICES.md). Generic sample artwork is included; client artwork, live-site configuration, private libraries, and customer recordings are not.
+
+## Current editor features
+
+Logo motion includes independent ease-in, ease-out, and speed controls while preserving the original timing at neutral settings. Shared saves merge independent presets, assets and review slots; conflicting edits to the same item preserve unsaved work for recovery. Review cards show option numbers, and the compact detail card keeps notes and jingles together. Back and browser history controls leave and restore the selected review consistently.
+
+The live project's client-specific SVGs, private presets, uploads, comments and hosting credentials are not committed to this reusable repository. The migration must preserve those records separately.

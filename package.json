@@ -14,7 +14,7 @@
     "prestart": "node scripts/build.mjs",
     "start": "node server/index.mjs",
     "pretest": "node scripts/build.mjs",
-    "test": "node --test scripts/verify-access.mjs scripts/verify-gallery-playback.mjs scripts/verify-review-feedback.mjs scripts/verify-intro-jingles.mjs scripts/verify-video-quality.mjs tests/server.test.mjs",
+    "test": "node --test scripts/verify-access.mjs scripts/verify-gallery-playback.mjs scripts/verify-review-feedback.mjs scripts/verify-intro-jingles.mjs scripts/verify-video-quality.mjs scripts/verify-logo-motion.mjs scripts/verify-shared-saves.mjs tests/server.test.mjs",
     "validate": "node scripts/validate-artifact.mjs"
   },
   "repository": {

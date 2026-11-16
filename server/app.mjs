@@ -19,7 +19,7 @@ function pageResponse(body, status = 200, headers = {}) {
 }
 function redirect(location, headers = {}) { return new Response(null, { status: 303, headers: { 'cache-control': 'private, no-store', location, ...headers } }); }
 
-export function createApp({ worker, dataDir, password, username = 'owner', origin = 'http://localhost:8787' } = {}) {
+export function createApp({ worker, dataDir, password, username = 'owner', origin = 'http://localhost:8787', sharedEditing = false } = {}) {
   if (typeof password !== 'string' || password.length < 12) throw new Error('INTRO_MAKER_PASSWORD must contain at least 12 characters. Run npm run setup.');
   if (typeof username !== 'string' || !username || username.length > 100) throw new Error('Choose an owner username with 1–100 characters.');
   if (!worker || typeof worker.fetch !== 'function') throw new Error('Build the application before starting the server.');
@@ -38,7 +38,7 @@ export function createApp({ worker, dataDir, password, username = 'owner', origi
     const parts = value.split('.'); if (parts.length !== 2 || !safeEqual(Buffer.from(sign(parts[0])), Buffer.from(parts[1]))) return 401;
     try { const data = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8')); return Number.isSafeInteger(data.exp) && data.exp > Math.floor(Date.now() / 1000) && data.exp <= Math.floor(Date.now() / 1000) + DAY && typeof data.nonce === 'string' ? 200 : 401; } catch { return 401; }
   };
-  const bucket = new DiskBucket(dataDir), env = { BUCKET: bucket, authorizeOwner, SIGN_IN_PATH: '/login' }, failures = new Map();
+  const bucket = new DiskBucket(dataDir), env = { BUCKET: bucket, authorizeOwner, SIGN_IN_PATH: '/login', SHARED_EDITING: sharedEditing === true }, failures = new Map();
   const loginPage = (error = '', target = '/maker/') => pageResponse(formPage('Owner sign in', `<p>Sign in to create intros and upload jingles.</p>${error ? `<p role="alert">${htmlEscape(error)}</p>` : ''}<form method="post" action="/login"><input type="hidden" name="return_to" value="${returnPath(target)}"><label>Username<input name="username" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button>Sign in</button></form>`), error ? 401 : 200);
   async function handle(request, ip) {
     const url = new URL(request.url), method = request.method;
@@ -69,7 +69,7 @@ export function createApp({ worker, dataDir, password, username = 'owner', origi
       return new Response('Method not allowed', { status: 405 });
     }
     // Gate every private path before dispatch as well as inside the Worker.
-    if (privatePath(url.pathname) && authorizeOwner(request) !== 200) {
+    if (!sharedEditing && privatePath(url.pathname) && authorizeOwner(request) !== 200) {
       if (['/maker', '/maker/', '/jingles', '/jingles/'].includes(url.pathname) && ['GET', 'HEAD'].includes(method)) return redirect('/login?return_to=' + encodeURIComponent(returnPath(url.pathname.startsWith('/jingles') ? '/jingles/' : '/maker/')));
       return new Response(JSON.stringify({ error: 'Sign in to continue.' }), { status: 401, headers: { 'content-type': 'application/json', 'cache-control': 'private, no-store' } });
     }

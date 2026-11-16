@@ -6,6 +6,19 @@
   const { clamp, lerp, smooth, prog, Ease, hrand, TAU, rgba, mixHex } = LOM;
   const A = LOM.LOGO_ANIMS, TX = LOM.TEXT_ANIMS;
 
+  // The easing span includes delayed text and each style's full reveal tail.
+  LOM.logoRevealEnd = function (S) {
+    const anim = A[S.st.logoAnim] || A.fadeUp, T = S.timing;
+    if (anim.all && S.parts.mark && S.parts.text) {
+      return T.start + T.D + S.st.textDelay * (S.st.layout === 'lockup' ? 0.3 : 0.2);
+    }
+    const times = anim.timing ? anim.timing(T, S) : T;
+    return Math.max(T.start + T.D,
+      S.parts.mark ? T.start + (anim.span ? anim.span(T.D) : T.D) : T.start,
+      S.parts.text ? times.textStart + T.D : T.start,
+      S.parts.tag ? times.tagStart + T.D : T.start);
+  };
+
   LOM.drawLogoAnim = function (ctx, t, S) {
     const st = S.st, anim = A[st.logoAnim] || A.fadeUp;
     if (anim.all) return anim.all(ctx, t, S);
@@ -198,6 +211,7 @@
   // 11 ─ Backlit rise (the Simple Profit opener style): mark swings up from flat, backlit, then lights up
   A.backlit = {
     name: 'Backlit rise', icon: '☀', badge: 'Backlit reveal',
+    span: D => D * 2.4, // includes the backlight settling after the mark forms
     timing: T => ({ ...T, textStart: T.start + T.D * 1.25 + (T.textStart - T.start) * 0.5, tagStart: T.start + T.D * 1.25 + (T.tagStart - T.start) * 0.6 }),
     part(ctx, S, part, p, t) {
       if (part.role !== 'mark') { // text: soft rise out of blur
@@ -254,7 +268,7 @@
   };
 
   // Steps of a mark: runs of pixel columns where the artwork's top and bottom edges stay level, such as the
-  // three bars of a stepped logo. Returned lowest step first, in part pixels from its top-left.
+  // three bars of the Intro Review logo. Returned lowest step first, in part pixels from its top-left.
   // A logo without clear steps is split into three equal columns, filled left to right.
   function markSteps(S, part) {
     const key = 'steps:' + part.role;

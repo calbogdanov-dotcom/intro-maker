@@ -410,9 +410,33 @@ function grainTex() {
   return _grain;
 }
 
+// A virtual logo clock keeps every reveal (including raw-time effects) on the
+// same easing curve in preview, scrubbing, exports and published recordings.
+LOM.logoTime = function (t, S) {
+  const value = (key, fallback, lo, hi) => {
+    const n = S.st[key];
+    return typeof n === 'number' && Number.isFinite(n) ? clamp(n, lo, hi) : fallback;
+  };
+  const speed = value('logoSpeed', 1, 0.25, 3);
+  const easeIn = value('logoEaseIn', 0, 0, 100) / 100;
+  const easeOut = value('logoEaseOut', 0, 0, 100) / 100;
+  const start = S.timing.start;
+  // Preserve the version 1 renderer exactly for existing settings.
+  if (t <= start || (speed === 1 && easeIn === 0 && easeOut === 0)) return t;
+  const elapsed = (t - start) * speed;
+  if (easeIn === 0 && easeOut === 0) return start + elapsed;
+  const end = S.st.mode === 'emerge' ? LOM.emergeDone(S) : LOM.logoRevealEnd(S);
+  const span = Math.max(0.2, end - start);
+  if (elapsed >= span) return start + elapsed;
+  const p = elapsed / span;
+  const a = Math.pow(p, 1 + 3 * easeIn), b = Math.pow(1 - p, 1 + 3 * easeOut);
+  return start + span * a / (a + b);
+};
+
 // ───────────────────────── frame ─────────────────────────
 LOM.renderFrame = function (ctx, S, t) {
   const st = S.st, { W, H } = S;
+  const logoT = LOM.logoTime(t, S);
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   ctx.clearRect(0, 0, W, H);
   const L = S.layer.getContext('2d');
@@ -430,8 +454,8 @@ LOM.renderFrame = function (ctx, S, t) {
     // background: the effect's own, cross-fading into the chosen background once the logo has formed
     if (!st.transparent) {
       const nb = st.emergeBg && st.emergeBg !== 'own' ? LOM.BACKGROUNDS[st.emergeBg] : null;
-      const k = nb ? smooth(doneT - 0.3, doneT + 0.9, t) : 0;
-      if (k < 1) fx.bg(ctx, t, S);
+      const k = nb ? smooth(doneT - 0.3, doneT + 0.9, logoT) : 0;
+      if (k < 1) fx.bg(ctx, logoT, S);
       if (k >= 1) nb.draw(ctx, t, S);
       else if (k > 0) {
         const c = scratch('emergeBg', W, H);
@@ -441,13 +465,13 @@ LOM.renderFrame = function (ctx, S, t) {
     }
     // logo: the chosen hold motion eases in after the reveal
     const hold = LOM.HOLD && LOM.HOLD[st.emergeHold];
-    const amp = hold ? smooth(doneT - 0.1, doneT + 0.8, t) : 0;
-    if (amp > 0 && hold.pre) hold.pre(L, t - doneT, S, amp);
-    fx.fg(L, t, S, ctx);
-    if (amp > 0 && hold.post) { L.save(); hold.post(L, t - doneT, S, amp); L.restore(); }
+    const amp = hold ? smooth(doneT - 0.1, doneT + 0.8, logoT) : 0;
+    if (amp > 0 && hold.pre) hold.pre(L, logoT - doneT, S, amp);
+    fx.fg(L, logoT, S, ctx);
+    if (amp > 0 && hold.post) { L.save(); hold.post(L, logoT - doneT, S, amp); L.restore(); }
   } else {
     if (!st.transparent) (LOM.BACKGROUNDS[st.bg] || LOM.BACKGROUNDS.solid).draw(ctx, t, S);
-    LOM.drawLogoAnim(L, t, S);
+    LOM.drawLogoAnim(L, logoT, S);
   }
 
   // outro: fade the logo out

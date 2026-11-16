@@ -25,8 +25,9 @@ function validInt(value, min, max) { const n = Number(value); return Number.isIn
 async function receiptHash(token){const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token));return [...new Uint8Array(hash)].map(x=>x.toString(16).padStart(2,"0")).join("")}
 async function ipDigest(request) { const ip = request.headers.get("CF-Connecting-IP") || "unknown"; const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ip)); return [...new Uint8Array(hash)].slice(0,12).map(x=>x.toString(16).padStart(2,"0")).join(""); }
 
-// The trusted server supplies authorization after verifying its session cookie.
-// Request headers supplied by a browser never grant owner access.
+// Editing, presets, uploads and publishing are open to every visitor.
+// Sites identity is used only for owner moderation of review comments.
+
 const privateHeaders = { "cache-control": "private, no-store", "vary": "Cookie", "x-content-type-options": "nosniff", "referrer-policy": "same-origin", "x-frame-options": "DENY" };
 const privateJSON = (value, status=200) => new Response(JSON.stringify(value), {status,headers:{...privateHeaders,"content-type":"application/json; charset=utf-8"}});
 function ownerAccess(request, env) {
@@ -100,9 +101,9 @@ async function privateRecord(request,env,name) {
   if(request.method!=="PUT")return privateJSON({error:"Method not allowed."},405);
   const input=await readInput(request,16*1024*1024),value=input[name];
   if(!(name==="library"?validLibrary(value):name==="jingles"?validJingleDrafts(value):validDrafts(value)))return privateJSON({error:"Please check the saved data."},400);
-  if((input.revision??null)!==(object?.etag??null))return privateJSON({error:"This workspace changed in another tab. Reload before saving."},409);
+  if((input.revision??null)!==(object?.etag??null))return privateJSON({error:"Someone else changed this workspace. Reload before saving."},409);
   const result=await env.BUCKET.put(objectKey,JSON.stringify({value,updatedAt:new Date().toISOString()}),{httpMetadata:{contentType:"application/json",cacheControl:"private, no-store"},onlyIf:object?{etagMatches:object.etag}:{etagDoesNotMatch:"*"}});
-  if(!result)return privateJSON({error:"This workspace changed in another tab. Reload before saving."},409);
+  if(!result)return privateJSON({error:"Someone else changed this workspace. Reload before saving."},409);
   return privateJSON({ok:true,revision:result.etag});
 }
 async function mergePublished(env,iteration,storageKey=key) {
@@ -114,17 +115,20 @@ async function mergePublished(env,iteration,storageKey=key) {
   }return false;
 }
 async function makerRequest(request,env,url) {
-  const path=url.pathname,access=ownerAccess(request,env);
+  const path=url.pathname;
+  if (env.SHARED_EDITING !== true && ownerAccess(request,env) !== 200) {
+    const access=ownerAccess(request,env);
+    if(access===401 && ["/maker","/maker/","/jingles","/jingles/"].includes(path))return new Response(null,{status:302,headers:{...privateHeaders,location:"/login?return_to="+encodeURIComponent(path.startsWith("/jingles")?"/jingles/":"/maker/")}});
+    return privateJSON({error:"Sign in to continue."},access);
+  }
   // The existing server-side publishing credential is also used for one-time
   // library migration. It is never delivered to the browser.
   const migration=path==="/api/maker/library"&&serviceAccess(request,env);
-  if(access!==200&&!migration){
-    if(access===401&&["/maker","/maker/","/jingles","/jingles/"].includes(path))return new Response(null,{status:302,headers:{...privateHeaders,location:(env.SIGN_IN_PATH || "/login")+"?return_to="+encodeURIComponent(path.startsWith("/jingles")?"/jingles/":"/maker/")}});
-    return privateJSON({error:access===403?"This workspace is private.":"Sign in to continue."},access);
-  }
-  if(!["GET","HEAD"].includes(request.method)&&!migration&&request.headers.get("origin")!==url.origin)return privateJSON({error:"This action must start from your private workspace."},403);
+  if(!["GET","HEAD"].includes(request.method)&&!migration&&request.headers.get("origin")!==url.origin)return privateJSON({error:"This action must start from this workspace."},403);
   if(path==="/jingles"||path.startsWith("/jingles/")||path.startsWith("/api/maker/jingles/"))return jingleRequest(request,env,url);
   if((path==="/api/maker/comments/remove"||path==="/api/maker/comments/restore")&&request.method==="POST"){
+    const access=ownerAccess(request,env);
+    if(access!==200)return privateJSON({error:access===403?"Only the owner can moderate comments.":"Sign in as the owner to moderate comments."},access);
     const input=await readInput(request),iteration=validInt(input.iteration,1,99),slot=validInt(input.slot,1,8),id=input.id;
     if(!iteration||!slot||typeof id!=="string"||!/^[A-Za-z0-9_-]{1,160}\.json$/.test(id))return privateJSON({error:"Invalid comment."},400);
     const kind=input.kind??"logo";if(!["logo","jingle"].includes(kind))return privateJSON({error:"Invalid review type."},400);
@@ -174,7 +178,7 @@ export default {
       try{return await makerRequest(request,env,url)}catch(e){return privateJSON({error:e.status?e.message:"Could not complete this action. Please try again."},e.status||500)}
     }
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: { "access-control-allow-origin":"*", "access-control-allow-methods":"GET,POST,PUT,OPTIONS", "access-control-allow-headers":"authorization,content-type,range,x-studio-title,x-studio-subtitle,x-studio-meta" } });
-    if (path === "/" || /^\/(intro|jingle)\/([1-9]\d?)\/([1-8])\/?$/.test(path)) return new Response(page, { headers: { "content-type":"text/html; charset=utf-8", "cache-control":"no-store" } });
+    if (path === "/" || /^\/(intro|jingle)\/([1-9]\d?)\/([1-8])\/?$/.test(path)) return new Response(env.SHARED_EDITING === true ? page : page.replace(/<a class="editor-link" id="(edit-workspace|edit-detail-workspace)"[^>]*>Edit<\/a>/g, '<span id="$1" hidden></span>'), { headers: { "content-type":"text/html; charset=utf-8", "cache-control":"no-store" } });
     if(path==="/api/jingles/board"&&request.method==="GET")return json(await getBoard(env,JINGLE_BOARD_KEY));
     if(path.startsWith("/api/audio/")&&["GET","HEAD"].includes(request.method))return publicAudio(request,env,url);
     if (path === "/api/board" && request.method === "GET") return json(await getBoard(env));
@@ -188,7 +192,7 @@ export default {
     }
     if (path === "/api/publish" && request.method === "POST") {
       if (!env.PUBLISH_TOKEN || request.headers.get("authorization") !== `Bearer ${env.PUBLISH_TOKEN}`) return fail("Publishing is not authorized.",401);
-      let input;try{input=await readInput(request)}catch(e){return fail("Invalid publish data.",e.status||400)}
+      let input;try{input=await readInput(request,32*1024)}catch{return fail("Invalid publish data.")}
       const iter=input.iteration;if(!iter||!validInt(iter.number,1,99)||!Array.isArray(iter.items)||iter.items.length>8)return fail("Invalid iteration.");
       const seen=new Set(),items=[];for(const item of iter.items){const slot=validInt(item.slot,1,8);if(!slot||!item.title||String(item.title).length>120||seen.has(slot))return fail("Invalid logo slot.");seen.add(slot);
         // Versioned link: a re-uploaded video gets a new address, so viewers never see a cached old cut.
@@ -199,7 +203,7 @@ export default {
     }
     if(path.startsWith("/api/media/")&&(request.method==="GET"||request.method==="HEAD")){
       const objectKey=path.slice("/api/".length),legacy=/^media\/iteration-\d+\/logo-\d+\.mov$/.test(objectKey),modern=/^media\/iteration-\d+\/logo-\d+-[a-f0-9-]{36}\.(mp4|webm)$/.test(objectKey);if(!legacy&&!modern)return fail("Not found.",404);
-      // Draft recordings are not public until the owner publishes their slot.
+      // Review playback exposes a recording only after its slot is published.
       if(modern){const board=await getBoard(env);if(!board.iterations.some(i=>i.items.some(x=>x.url?.split("?")[0]===`/api/${objectKey}`)))return fail("Not found.",404)}
       // Safari and iPhone ask for videos in byte ranges and won't play without 206 answers.
       const wantsRange=request.headers.has("range");let object=null;
@@ -225,7 +229,7 @@ export default {
     }
     if(path==="/api/comments/remove"&&request.method==="POST"){
       if(request.headers.get("origin")!==url.origin)return fail("This action must start from the review site.",403);
-      let input;try{input=await readInput(request,32*1024)}catch(e){return fail("Invalid feedback.",e.status||400)}
+      let input;try{input=await readInput(request)}catch(e){return fail("Invalid feedback.",e.status||400)}
       const iteration=validInt(input.iteration,1,99),slot=validInt(input.slot,1,8),kind=input.kind??"logo",id=input.id;
       if(!iteration||!slot||!["logo","jingle"].includes(kind)||typeof id!=="string"||!/^[A-Za-z0-9_-]{1,160}\.json$/.test(id)||typeof input.token!=="string"||input.token.length>160)return fail("Invalid feedback.");
       const object=await env.BUCKET.get(`${commentFolder(kind)}/${iteration}/${slot}/${id}`),record=object?await object.json():null;
