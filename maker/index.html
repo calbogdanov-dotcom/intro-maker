@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="workspacebar"><span class="private-label">Private workspace</span><span id="cloudStatus" role="status" aria-live="polite">Loading your workspace…</span><div class="grow"></div><button class="ghost" id="cloudRetry" hidden>Retry save</button><a href="/jingles/">Jingle uploader</a><a href="/" target="_blank" rel="noopener">Open Intro Review ↗</a><a href="/logout">Sign out</a></header>
+<header class="workspacebar"><span class="private-label">Shared workspace</span><span id="cloudStatus" role="status" aria-live="polite">Loading your workspace…</span><div class="grow"></div><button class="ghost" id="cloudRetry" hidden>Retry save</button><a href="/jingles/">Jingle uploader</a><a href="/" target="_blank" rel="noopener">Open Intro Review ↗</a></header>
 <header class="top">
   <div class="brand"><span class="logo-dot"></span>Intro Maker</div>
   <div class="seg big" id="modeSeg" role="tablist">
@@ -123,10 +123,14 @@
         <label>Duration (s)<input type="range" id="duration" min="2" max="15" step="0.1"><output></output></label>
         <label>Logo starts at (s)<input type="range" id="delay" min="0" max="5" step="0.05"><output></output></label>
         <label>Reveal length (s)<input type="range" id="revealDur" min="0.3" max="4" step="0.05"><output></output></label>
+        <label>Logo ease in<input type="range" id="logoEaseIn" min="0" max="100" step="1" aria-describedby="logoMotionHint"><output></output></label>
+        <label>Logo ease out<input type="range" id="logoEaseOut" min="0" max="100" step="1" aria-describedby="logoMotionHint"><output></output></label>
+        <label>Logo speed<input type="range" id="logoSpeed" min="0.25" max="3" step="0.05" aria-describedby="logoMotionHint"><output></output></label>
         <label>Text delay (s)<input type="range" id="textDelay" min="0" max="2.5" step="0.05"><output></output></label>
         <label>Background amount<input type="range" id="bgIntensity" min="0" max="2" step="0.05"><output></output></label>
         <label>Background speed<input type="range" id="bgSpeed" min="0" max="3" step="0.05"><output></output></label>
       </div>
+      <p class="hint" id="logoMotionHint">Ease in softens the start; ease out softens the finish. 0% keeps the original easing. Speed: 1× is normal, lower is slower. These controls affect the logo and text. Increase Duration for slower reveals.</p>
       <div class="grid2">
         <label class="fld">Camera<select id="camera"><option value="none">Still</option><option value="in">Slow push in</option><option value="out">Slow pull out</option></select></label>
         <label class="fld">Intro<select id="intro"><option value="none">Cut in</option><option value="fade">Fade from black</option></select></label>
@@ -175,6 +179,7 @@
 <div class="modal" id="workspaceError" hidden><div class="box"><h3>Workspace unavailable</h3><p id="workspaceErrorText"></p><button class="primary" onclick="location.reload()">Reload workspace</button></div></div>
 <div class="modal" id="publishModal" hidden><div class="box"><h3 id="publishTitle">Preparing review…</h3><div class="bar"><div id="publishBar"></div></div><p id="publishInfo" class="mono"></p><div class="row end"><button class="ghost" id="publishCancel">Cancel</button></div></div></div>
 <script src="video-settings.js"></script>
+<script src="shared-saves.js"></script>
 <script src="hosted.js"></script>
 <script src="engine.js"></script>
 <script src="backgrounds.js"></script>
