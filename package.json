@@ -25,30 +25,3 @@
     "url": "https://github.com/calbogdanov-dotcom/intro-maker/issues"
   }
 }
-{
-  "name": "intro-maker",
-  "version": "1.0.0",
-  "description": "Self-hosted logo intro editor, client review board, and jingle uploader.",
-  "private": true,
-  "type": "module",
-  "license": "MIT",
-  "engines": {
-    "node": ">=22"
-  },
-  "scripts": {
-    "setup": "node scripts/setup.mjs",
-    "build": "node scripts/build.mjs",
-    "prestart": "node scripts/build.mjs",
-    "start": "node server/index.mjs",
-    "pretest": "node scripts/build.mjs",
-    "test": "node --test scripts/verify-access.mjs scripts/verify-gallery-playback.mjs scripts/verify-review-feedback.mjs scripts/verify-intro-jingles.mjs scripts/verify-video-quality.mjs tests/server.test.mjs",
-    "validate": "node scripts/validate-artifact.mjs"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/calbogdanov-dotcom/intro-maker.git"
-  },
-  "bugs": {
-    "url": "https://github.com/calbogdanov-dotcom/intro-maker/issues"
-  }
-}
